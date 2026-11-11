@@ -173,14 +173,58 @@ create policy "Users can send friend requests"
 on public.friend_requests for insert to authenticated
 with check (requester_id = auth.uid() and status = 'pending');
 
-create policy "Recipients can respond to requests"
-on public.friend_requests for update to authenticated
-using (recipient_id = auth.uid() and status = 'pending')
-with check (recipient_id = auth.uid() and status in ('accepted', 'declined'));
+-- Responses are performed through the SECURITY DEFINER RPC below so clients
+-- cannot rewrite requester/recipient IDs or forge an accepted request.
 
 create policy "Users can cancel their own pending requests"
 on public.friend_requests for delete to authenticated
 using (requester_id = auth.uid() and status = 'pending');
+
+create or replace function public.respond_to_friend_request(
+  request_id uuid,
+  decision public.friend_request_status
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  request_row public.friend_requests%rowtype;
+begin
+  if decision not in ('accepted', 'declined') then
+    raise exception 'Decision must be accepted or declined';
+  end if;
+
+  select * into request_row
+  from public.friend_requests
+  where id = request_id
+    and recipient_id = auth.uid()
+    and status = 'pending'
+  for update;
+
+  if not found then
+    raise exception 'Pending friend request not found';
+  end if;
+
+  update public.friend_requests
+  set status = decision, updated_at = now()
+  where id = request_row.id;
+
+  if decision = 'accepted' then
+    insert into public.friendships (user_low, user_high)
+    values (
+      least(request_row.requester_id, request_row.recipient_id),
+      greatest(request_row.requester_id, request_row.recipient_id)
+    )
+    on conflict do nothing;
+  end if;
+end;
+$;
+
+revoke all on function public.respond_to_friend_request(uuid, public.friend_request_status) from public;
+grant execute on function public.respond_to_friend_request(uuid, public.friend_request_status) to authenticated;
+
 
 create policy "Users can see their own friendships"
 on public.friendships for select to authenticated
