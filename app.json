@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "TUNER",
+    "slug": "tuner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "tuner",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.themarkkbradoncollective.tuner"
+    },
+    "android": {
+      "package": "com.themarkkbradoncollective.tuner",
+      "adaptiveIcon": {
+        "backgroundColor": "#090A0F"
+      }
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
